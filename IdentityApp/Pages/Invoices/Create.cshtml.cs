@@ -1,20 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using IdentityApp.Authorization;
+using IdentityApp.Data;
+using IdentityApp.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using IdentityApp;
-using IdentityApp.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace IdentityApp.Pages.Invoices
 {
-    public class CreateModel : PageModel
+    public class CreateModel : DI_BasePageModel
     {
         private readonly IdentityApp.Data.ApplicationDbContext _context;
 
-        public CreateModel(IdentityApp.Data.ApplicationDbContext context)
+        public CreateModel(
+            ApplicationDbContext context,
+            IAuthorizationService authorizationService,
+            UserManager<IdentityUser> userManager)
+            : base(context, authorizationService, userManager)
         {
             _context = context;
         }
@@ -25,18 +32,21 @@ namespace IdentityApp.Pages.Invoices
         }
 
         [BindProperty]
-        public Invoice Invoice { get; set; } = default!;
+        public Invoice Invoice { get; set; }
 
         // For more information, see https://aka.ms/RazorPagesCRUD.
         public async Task<IActionResult> OnPostAsync()
         {
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
+            Invoice.CreatorId = UserManager.GetUserId(User);
 
-            _context.Invoice.Add(Invoice);
-            await _context.SaveChangesAsync();
+            var isAuthorized = await AuthorizationService.AuthorizeAsync(
+                User, Invoice, InvoiceOperations.Create);
+
+            if (isAuthorized.Succeeded == false)
+                return Forbid();
+
+            Context.Invoice.Add(Invoice);
+            await Context.SaveChangesAsync();
 
             return RedirectToPage("./Index");
         }
